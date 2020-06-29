@@ -1,3 +1,8 @@
 .DS_Store
 .idea/
 .ipynb_checkpoints/
+data/*
+docker-compose.override.yml
+venv*
+*.pyc
+*.pkl

@@ -1,22 +1,25 @@
-FROM python:3.6
+FROM python:3.7
 
 # set the working directory
-RUN ["mkdir", "app"]
-WORKDIR "app"
+#RUN ["mkdir", "app"]
+COPY run.sh .
+WORKDIR app
 
 # install code dependencies
-COPY "requirements.txt" .
+COPY requirements.txt .
 RUN ["pip", "install", "-r", "requirements.txt"]
 
 # install environment dependencies
-COPY "app.py" .
-COPY "run.sh" .
-COPY "build.ipynb" .
-COPY "health-check-data.csv" .
+COPY app/ .
+#COPY "app/eta" eta/
+#COPY health-check-data.csv .
 
 # provision environment
-ENV FLASK_APP app.py
-RUN ["chmod", "+x", "./run.sh"]
+# todo change flask location?
+ENV FLASK_APP app/app.py
+#RUN ["ls"]
+RUN ["chmod", "+x", "/run.sh"]
 EXPOSE 8080
-ENTRYPOINT ["./run.sh"]
+WORKDIR /
+ENTRYPOINT ["/bin/bash", "/run.sh"]
 CMD ["build"]
