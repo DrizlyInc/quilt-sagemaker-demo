@@ -172,10 +172,9 @@ def write_health_check_request(health_check_row, health_check_write_directory="/
         "dow",
         "hod"
     ]
-    print("")
     health_check_row[request_keys].to_csv(f"{health_check_write_directory}health-check-data.csv")
 
-#TODO: 5/28 Write the delivery minutes training so it takes into account the other predictors values
+
 def train_model(df, target_column, training_columns, training_size, params_list=[{}]):
     training_cols = [target_column] + training_columns
     print(training_cols)
@@ -185,9 +184,9 @@ def train_model(df, target_column, training_columns, training_size, params_list=
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=training_size)
     best_model = None
     best_score = None
+    #TODO: Make this able to handle more condensed parameters. If every value had to be in array form, a cross join of the
+    # parameters would permit denser configuration files.
     for params in params_list:
-        # intervalForest = RandomForestInterval(n_jobs=-1, n_estimators=n_estimators, verbose=0,
-        #                                       confidence_interval_lower=40, confidence_interval_upper=95)
         intervalForest = RandomForestInterval(**params)
         #
         intervalForest.fit(X_train, y_train)
@@ -226,12 +225,6 @@ if __name__ == "__main__" :
     param_grid = [
         {"n_estimators": 30, "n_jobs": 1
         , "confidence_interval_lower": 10, "confidence_interval_upper":90}
-        # {"n_estimators": [30, 60, 90, 120], "n_jobs": [1]},
-        # {
-        #     "max_depth": [None, 2, 5, 10],
-        #     "n_estimators": [50],
-        #     "n_jobs": [1]
-        # },
     ]
     training_size = 0.95
     target_cols, training_cols = get_target_cols_and_training_cols()

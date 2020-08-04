@@ -1,0 +1,51 @@
+ "models": [
+    {"minutes_enroute_to_complete": [
+            "store_id",
+            "enroute_to_complete_zipwide_waterfall",
+            "minutes_enroute_to_complete_median",
+            "minutes_enroute_to_complete_most_granular",
+            "minutes_enroute_to_complete_most_granular_context",
+            "minutes_enroute_to_complete_waterfall",
+            "marking_enroute_poorly"
+        ]},
+    {"minutes_placed_to_accepted": [
+            "store_id",
+            "is_a_driver_at_store",
+            "pct_capacity",
+            "minutes_placed_to_accepted_median",
+            "minutes_placed_to_accepted_most_granular",
+            "minutes_placed_to_accepted_waterfall"
+        ]},
+    {"minutes_accepted_to_enroute": [
+            "store_id",
+            "is_a_driver_at_store",
+            "pct_capacity",
+            "minutes_accepted_to_enroute_median",
+            "marking_enroute_poorly",
+            "driver_minutes_accepted_to_enroute_diff",
+            "minutes_accepted_to_enroute_median_week_diff",
+            "minutes_accepted_to_enroute_median_day_diff",
+            "minutes_accepted_to_enroute_median_hour_diff",
+            "minutes_accepted_to_enroute_wsum_last_n_completed_orders_diff"
+        ]},
+    {"delivery_minutes":[
+            "store_id",
+            "is_a_driver_at_store",
+            "driver_minutes_accepted_to_enroute_diff",
+            "pct_capacity",
+            "marking_enroute_poorly",
+            "driver_delivery_minutes_diff",
+            "minutes_placed_to_accepted_median",
+            "minutes_accepted_to_enroute_median",
+            "minutes_enroute_to_complete_median",
+            "minutes_enroute_to_complete_most_granular_context",
+            "delivery_minutes_median_week_diff",
+            "delivery_minutes_median_day_diff",
+            "delivery_minutes_median_hour_diff",
+            "delivery_minutes_wsum_last_n_completed_orders_diff",
+            "delivery_minutes_median",
+            "delivery_minutes_most_granular",
+            "delivery_minutes_waterfall"
+      ]
+    }
+  ]

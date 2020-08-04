@@ -1,1 +1,0 @@
-This should define the part of the project that feeds data into redis.

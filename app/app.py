@@ -1,5 +1,5 @@
 from logging.config import dictConfig
-#TODO: Make this a config
+#TODO: Make this a config or an arg
 dictConfig({
     'version': 1,
     'formatters': {'default': {
@@ -11,7 +11,7 @@ dictConfig({
         'formatter': 'default'
     }},
     'root': {
-        'level': 'INFO',
+        'level': 'DEBUG',
         'handlers': ['wsgi']
     }
 })
@@ -26,7 +26,7 @@ import traceback
 
 
 
-
+#TODO: get redis host here
 app = Flask(__name__)
 app.logger.info(f"Loaded Flask App Named:{__name__}")
 from app.eta import adapter
@@ -62,6 +62,7 @@ def ping():
         return Response(response=json.dumps(response), status=500, mimetype='application/json')
 
 # Post is of form {"eta_requests": Array of Json requests, ...}
+# an individual request should take the form of a dictionary {"store_id", "delivery_zipcode",
 @app.route('/invocations', methods=['POST'])
 def predict():
     """
@@ -73,7 +74,7 @@ def predict():
     app.logger.info(f"response:{results}")
     return Response(response=json.dumps(results), status=200, mimetype='application/json')
 
-# Just a ping repeated 1000 times internally
+# Just a ping repeated 100 times internally
 @app.route('/performance_test', methods=['GET'])
 def performance_test():
     """

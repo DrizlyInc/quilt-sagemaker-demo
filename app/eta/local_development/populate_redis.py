@@ -1,3 +1,4 @@
+# This can be run inside our outside of the container, the host needs to be updated if it is run outside of the container
 import redis
 import json
 import sys
@@ -26,7 +27,8 @@ def write_to_redis(redis_connection, df, columns, namespace, namespace_id_column
         .groupby(namespace_id_columns, group_keys=False)
         .apply(lambda df: df.sample(1))
     )
-    df_dict = df_unique[columns].to_dict("records")
+    #List of dicts. Convert values of type bool or list in each dict to type string (or v is None )
+    df_dict = [{k: str(v) if isinstance(v, bool) or isinstance(v, list) or v is None  else v for k,v in row.items()} for row in df_unique[columns].to_dict("records")]
     for row in df_dict:
         namespace_ids = []
         for namespace_id_column in namespace_id_columns:
@@ -44,7 +46,8 @@ def write_to_redis(redis_connection, df, columns, namespace, namespace_id_column
             values.pop(namespace)
             for namespace_column in namespace_id_columns:
                 values.pop(namespace_column)
-            pipe.set(namespace_id, json.dumps(values))
+            # pipe.set(namespace_id, json.dumps(values))
+            pipe.hmset(namespace_id, values)
         pipe.execute()
     print("Written: " + str(len(df_dict_with_namespace)))
 
@@ -85,17 +88,33 @@ def set_store_metadata(redis_connection, df):
     # zip
     # state
 
-
+def set_location_time_deltas(redis_connection,df):
+    namespace = "location_time_deltas"
+    namespace_id_columns = ["delivery_zipcode", "dow", "hod"]
+    location_time_deltas_columns = [
+        "delivery_zipcode",
+        "dow",
+        "hod",
+        "enroute_to_complete_zipwide_extra_median_delta",
+        "enroute_to_complete_zipwide_intra_median_delta",
+        "enroute_to_complete_zipwide_dow_extra_median_delta",
+        "enroute_to_complete_zipwide_dow_intra_median_delta",
+        "enroute_to_complete_zipwide_hod_extra_median_delta",
+        "enroute_to_complete_zipwide_hod_intra_median_delta",
+        "enroute_to_complete_zipwide_dow_hod_extra_median_delta",
+        "enroute_to_complete_zipwide_dow_hod_intra_median_delta",
+        "enroute_to_complete_zipwide_waterfall"]
+    write_to_redis(
+        redis_connection, df, location_time_deltas_columns, namespace, namespace_id_columns
+    )
 #
 # #Write daily
 ## TODO: Need to create the waterfall value in the data service
 def set_store_history(redis_connection, df):
     namespace = "store_order_history"
-    namespace_id_columns = ["store_id", "dow", "hod"]
+    namespace_id_columns = ["store_id"]
     store_history_columns = [
         "store_id",
-        "dow",
-        "hod",
         "marking_enroute_poorly",
         "orders_per_driver_median",
         "minutes_placed_to_accepted_median",
@@ -106,23 +125,8 @@ def set_store_history(redis_connection, df):
         "minutes_accepted_to_enroute_median_week_diff",
         "minutes_enroute_to_complete_median_week_diff",
         "delivery_minutes_median_week_diff",
-        "enroute_to_complete_zipwide_extra_median_delta",
-        "enroute_to_complete_zipwide_intra_median_delta",
-        "enroute_to_complete_zipwide_dow_extra_median_delta",
-        "enroute_to_complete_zipwide_dow_intra_median_delta",
-        "enroute_to_complete_zipwide_hod_extra_median_delta",
-        "enroute_to_complete_zipwide_hod_intra_median_delta",
-        "enroute_to_complete_zipwide_dow_hod_extra_median_delta",
-        "enroute_to_complete_zipwide_dow_hod_intra_median_delta",
-        "enroute_to_complete_zipwide_waterfall",
-        "minutes_enroute_to_complete_stddev_hour",
-        "minutes_enroute_to_complete_stddev_day",
         "minutes_enroute_to_complete_stddev_week",
-        "minutes_placed_to_accepted_stddev_hour",
-        "minutes_placed_to_accepted_stddev_day",
         "minutes_placed_to_accepted_stddev_week",
-        "delivery_minutes_stddev_hour",
-        "delivery_minutes_stddev_day",
         "delivery_minutes_stddev_week",
     ]
     write_to_redis(
@@ -176,6 +180,12 @@ def set_store_history_live(redis_connection, df):
         "minutes_accepted_to_enroute_wsum_last_n_completed_orders_diff",
         "minutes_enroute_to_complete_wsum_last_n_completed_orders_diff",
         "delivery_minutes_wsum_last_n_completed_orders_diff",
+        "minutes_enroute_to_complete_stddev_hour",
+        "minutes_enroute_to_complete_stddev_day",
+        "minutes_placed_to_accepted_stddev_hour",
+        "minutes_placed_to_accepted_stddev_day",
+        "delivery_minutes_stddev_hour",
+        "delivery_minutes_stddev_day"
     ]
 
     write_to_redis(
@@ -206,6 +216,8 @@ FROM
     )
 
 if __name__ == "__main__":
+    df = get_training_rows("stage_js")
+    print("Got Training Data")
     redis_connection = redis.StrictRedis(host='redis', port=6379, db=0, charset="utf-8", decode_responses=True)
     # for local dev:
     # redis_connection = redis.StrictRedis(
@@ -214,12 +226,11 @@ if __name__ == "__main__":
     redis_connection.flushall()
     if redis_connection.ping():
         print("Connected to redis")
-    df = get_training_rows("stage_js")
     set_eta_fallback("stage_js", redis_connection)
-    print("Got Training Data")
     set_store_metadata(redis_connection, df)
     set_store_context(redis_connection, df)
     set_driver_history(redis_connection, df)
     set_store_history(redis_connection, df)
     set_store_history_live(redis_connection, df)
+    set_location_time_deltas(redis_connection, df)
 
