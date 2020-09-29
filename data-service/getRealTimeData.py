@@ -12,6 +12,7 @@ import datetime
 spark = (
     SparkSession.builder.appName("Python Spark SQL basic example")
     .config("spark.debug.maxToStringFields", 10000)
+    .config("spark.redis.host", "eta-redis.dgvvsn.0001.use1.cache.amazonaws.com")
     .getOrCreate()
 )
 # confirmed to work:
@@ -424,6 +425,12 @@ def push_df_to_redis(spark, registeredTempTable, namespace_id_columns):
     namespace_id_columns_joined = ",".join(namespace_id_columns)
     # TODO: If you rewrite this so it doesn't require array_join... programmatically generating nested concats with the correct columns
     # you might get faster peformance as pushdown fails solely due to this and that can affect what the optimizer does
+    logging.info(f"Writing to redis with config:")
+    configurations = spark.sparkContext.getConf().getAll()
+    for configuration in configurations:
+        logging.info(f"{configuration}")
+    for conf in configurations:
+        print(conf)
     df = spark.sql(
         f"SELECT *, concat_ws(',',array({namespace_id_columns_joined}) ) namespace_id_columns FROM {registeredTempTable}"
     )
@@ -588,7 +595,7 @@ def main(spark):
 
 # Upon running:
 # 1) load snowflake parquets x
-# 2) test their size  x
+# 2) integration_tests their size  x
 # 3) replace any stale data  x
 # 4) load mysql data  x
 # 5) get most recent store_order_events id x

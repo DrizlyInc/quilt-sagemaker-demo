@@ -11,8 +11,8 @@ from sklearn.ensemble import RandomForestRegressor
 from matplotlib import pyplot as plt
 from joblib import dump
 
-# import sys
-# sys.path.append("..")
+import sys
+sys.path.append("..")
 from app.eta.models.RandomForestInterval import RandomForestInterval
 from app.eta.model_evaluation.IntervalScorer import interval_score
 from app.eta.model_evaluation.IntervalVisualizer import graph_intervals
@@ -51,7 +51,7 @@ def get_training_data(target_db):
 # TODO: This should become a configuration. Part of the goal is to maintain the ability to quickly change
 # TODO: what columns are used to generate each portion of the model. Probably need these values to be outside
 # TODO: the container itself. Possibly in s3 -> s3://drizly-ml/models/etas/target_cols_and_training_cols/modelVersion/ ...
-# TODO: How do we A/b test models?
+# TODO: How do we A/b integration_tests models?
 def get_target_cols_and_training_cols():
     target_cols = [
         "minutes_enroute_to_complete",
@@ -231,8 +231,8 @@ if __name__ == "__main__" :
     #TODO: Should be derived from an environment variable and or an arg
     df = get_training_data("STAGE_JS")
     print("got training data")
-    #TODO: Change this to write to /opt/ml/model/ for prod
-    health_check_row = train(df, target_cols, training_cols, training_size, param_grid, model_write_directory="data/")
+    #TODO: Change this to write to /opt/ml/model/ for prod √
+    health_check_row = train(df, target_cols, training_cols, training_size, param_grid, model_write_directory="/opt/ml/model/")
     print("trained")
-    write_health_check_request(health_check_row, health_check_write_directory="data/")
+    write_health_check_request(health_check_row, health_check_write_directory="/opt/ml/model/")
     print("done")

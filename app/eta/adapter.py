@@ -60,6 +60,7 @@ class Adapter:
                 "hod": hod,
                 "dow": dow,
             }
+            model_prediction = {}
             try:
                 eta_request_arr = self._data_service.get_data(
                     this_request_dict, hod=hod, dow=dow
@@ -117,7 +118,8 @@ if __name__ == "__main__":
     # requires redis to be running at localhost
     import cProfile
 
-    adapter = Adapter(redis_host="localhost", model_filename="data/composed_model.pkl")
+    adapter = Adapter(redis_host="eta-redis.dgvvsn.0001.use1.cache.amazonaws.com")
+                      #model_filename="data/composed_model.pkl")
     # This store id should throw an error as it won't be in any of the fall back logic
     eta_request = {
         "eta_requests": [
