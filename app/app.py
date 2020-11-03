@@ -18,34 +18,38 @@ dictConfig({
 #TODO: Certain info logs should be written to file instead of to the stream.
 #TODO: Really the goal is just to get a sense of where errors are occurring
 #TODO: That said if the data service gets written properly, perhaps the verbosity won't be a prblem
-from flask import Flask, Response, request
-import pandas as pd
-import json
+from flask import Flask, Response, request, Blueprint, jsonify
 import sys
 import traceback
+import json
+import os
 
-
+import pandas as pd
+from app.eta import adapter
+from werkzeug.exceptions import HTTPException
 
 #TODO: get redis host here
 app = Flask(__name__)
+errors = Blueprint('errors', __name__)
 app.logger.info(f"Loaded Flask App Named:{__name__}")
-from app.eta import adapter
 
-#Load connfiguration
+#Load configuration
 #TODO: Make this play nice with docker-compose for local development
-import json
-import os
+
 with open('/app/eta/config/config.json', 'r') as f:
     config = json.load(f)
 
 env = os.environ.get('ETAS_ENV')
 model = adapter.Adapter(redis_host=config[env]["redis"]["host"])
+version = config[env]["version"]
 app.logger.info("Loaded Adapter")
 
 def run_model(request):
     """Predictor function."""
     app.logger.debug(f"Predict request:{request}")
-    return model.predict(request)
+    eta_responses = model.predict(request)
+    response = {"eta_responses":eta_responses, "version":version}
+    return response
 
 
 @app.route('/ping', methods=['GET'])
@@ -83,8 +87,10 @@ def predict():
     """
     Do an inference on a single batch of data.
     """
+    #TODO: Figure out how to throw 400s here
+    #TODO: Talk to Antall Jhuanderson about status in the response vs Response format
     app.logger.info(f"request:{request.get_data()}")
-    results = run_model(request.get_json())
+    results = run_model(request.get_data())
     app.logger.info(f"response:{results}")
     return Response(response=json.dumps(results), status=200, mimetype='application/json')
 
@@ -116,3 +122,20 @@ def performance_test():
         response = {"status": "error", "type": str(e[0]), "value": str(e[1])}
         return Response(response=json.dumps(response), status=500, mimetype='application/json')
 #TODO: Expose endpoint permitting additional predictions about stage of the order.
+
+
+
+@app.errorhandler(HTTPException)
+def handle_exception(e):
+    """Return JSON instead of HTML for HTTP errors."""
+    # start with the correct headers and status code from the error
+    app.logger.error(f"FLASK ERROR HANDLER {e}")
+    response = e.get_response()
+    # replace the body with JSON
+    response.data = json.dumps({
+        "status_code": e.code,
+        "error_name": e.name,
+        "description": e.description,
+    })
+    response.content_type = "application/json"
+    return response

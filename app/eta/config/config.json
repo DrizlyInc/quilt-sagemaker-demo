@@ -1,10 +1,12 @@
 {
   "local": {
+    "version": "etas_v2",
     "redis": {
       "host": "redis"
     }
   },
   "production": {
+    "version": "etas_v2",
     "redis":{"host": "eta-redis.dgvvsn.0001.use1.cache.amazonaws.com"},
     "training": {"training_schema" : "prod",
       "model_write_directory": "/opt/ml/model/",

@@ -4,24 +4,29 @@ from app.eta.util import SnowflakeConnector
 
 def get_test_rows(target_db, requests=20):
     sql = f"""
-    SELECT distinct * 
+    SELECT distinct *
     FROM
-    (SELECT  store_id, delivery_zipcode, null hod, null dow
+    (SELECT store_id, TRY_CAST(delivery_zipcode as int) delivery_zipcode
     FROM {target_db}.datascience.etas_training_no_3pd
-    ORDER BY RANDOM()
-    LIMIT {requests}) T
-    UNION
-    SELECT *
-    FROM
-    (SELECT store_id, delivery_zipcode, hod::string, dow
-    FROM {target_db}.datascience.etas_training_no_3pd
-    ORDER BY RANDOM()
+    ORDER  BY RANDOM()
     LIMIT {requests}) U
     UNION
-    SELECT -1, 'failing zipcode', null hod, null dow;
+    SELECT -1, null;
     """
     return SnowflakeConnector.get_json_from_sql(sql)
 
-test_rows = get_test_rows('STAGE_JS', requests=10)
+test_rows = get_test_rows('PROD', requests=10)
 print(len(test_rows))
-print(requests.post('http://localhost:8080/invocations', json={'eta_requests':test_rows}).text)
+
+requests_list = [{'eta_requests':test_rows},
+            {'eta_requests': []},
+            {'eta_requests': [{}]},
+            {'eta_requests': {}},
+            {},
+            "KLSDJFJ:SLGU:LSUDGLKGMSNDV>SDCJSKDJF"
+    ]
+
+for request in requests_list:
+    response = requests.post('http://localhost:8080/invocations', json=request)
+    print(response.status_code)
+    print(f"request:{request} response: {response.text}")

@@ -7,9 +7,23 @@ import math
 
 import logging
 from distutils.util import strtobool
-
+from werkzeug.exceptions import BadRequest
 # logger = logging.getlogger()
 
+# class InvalidUsage(werkzeug.exceptions.BadRequest):
+#     status_code = 400
+#
+#     def __init__(self, message, status_code=None, payload=None):
+#         Exception.__init__(self)
+#         self.message = message
+#         if status_code is not None:
+#             self.status_code = status_code
+#         self.payload = payload
+#
+#     def to_dict(self):
+#         rv = dict(self.payload or ())
+#         rv['message'] = self.message
+#         return rv
 
 class DataService:
     def __init__(self):
@@ -41,31 +55,43 @@ class DataService:
             logging.debug(f"Unknown String:{string}")
             return string
 
+    def transform_dict(self, dict_to_convert, type_dict):
+        converted_dict = dict()
+        for k, v in dict_to_convert.items():
+            # If it is a specified transformation, apply it, else treat as float
+            try:
+                transform_function = type_dict.get(
+                    k, self.betterstrtofloat
+                )
+                converted_dict[k] = transform_function(v)
+            except Exception as e:
+                logging.error(
+                    f"Error of type {e.type} in redis transform for key:{k} with value: {v} with transform function: {transform_function}"
+                )
+                raise BadRequest(f"Invalid input type for the field:{k} with the value: {v} could not be converted to type: {transform_function}")
+        return converted_dict
+
     # redis likes strings. sklearn does not.
     def transform_redis_data_to_correct_type(self, redis_hashmap:dict) -> dict:
         transformation_function_dict = {
+            "store_id" : int,
+            "driver_id" : int,
             "is_a_driver_at_store": self.betterstrtobool,
             "available_driver_ids": self.strtoarr,
             "marking_enroute_poorly": self.betterstrtobool,
             "time_zone": str,
             "dow": str,
             "store_zipcode": str,
+            "delivery_zipcode": str,
             "mx_date": str,
             "delivery_state": str,
             "training_data_date":str
         }
-        transformed_redis_data = dict()
-        for k, v in redis_hashmap.items():
-            # If it is a specified transformation, apply it, else treat as float
-            try:
-                transform_function = transformation_function_dict.get(
-                    k, self.betterstrtofloat
-                )
-                transformed_redis_data[k] = transform_function(v)
-            except Exception as e:
-                logging.warning(
-                    f"Error of type {e} in redis transform for key:{k} with value: {v} with transform function: {transform_function}"
-                )
+        try:
+            transformed_redis_data = self.transform_dict(redis_hashmap, transformation_function_dict)
+        except Exception as e:
+            #Exception already logged. This shouldn't block the job from returning a default value
+            transformed_redis_data = dict()
         return transformed_redis_data
 
     def get_from_redis(self, key : str) -> dict:
@@ -333,8 +359,7 @@ class DataService:
         val = 0.0
         # TODO: Might have to do some lower/upper case on delivery_zipcode here depending on API
         if (
-            store_metadata["store_zipcode"]
-            == upper(redis_data["delivery_zipcode"])
+            store_metadata["store_zipcode"] == redis_data["delivery_zipcode"]
         ):
             for intra_zip_key in intra_zip_keys:
                 if location_time_deltas.get(
@@ -434,14 +459,12 @@ class DataService:
     # First one gets from redis
     # Second one fills in missing values
     # Third one converts it to a dataframe and forms a request for every driver
-
-    def get_redis_data(self, request_dict, hod, dow):
+    def get_redis_data(self, request_dict):
         store_metadata = self.get_store_metadata(request_dict)
         if len(store_metadata) == 0:
             logging.error(f"Missing store_metadata for {request_dict}")
             raise KeyError(f"Missing store_metadata for {request_dict}")
-        if hod is None and dow is None:
-            hod, dow = self.get_local_hod_dow(store_metadata["time_zone"])
+        hod, dow = self.get_local_hod_dow(store_metadata["time_zone"])
         request_dict["hod"] = hod
         request_dict["dow"] = dow
         store_order_history = self.get_store_order_history(request_dict)
@@ -510,9 +533,21 @@ class DataService:
         redis_data["pct_capacity"] = self.calculate_pct_capacity(redis_data)
         return redis_data
 
-    def get_data(self, eta_request_dict, hod=None, dow=None):
+    def coerce_request_dict(self, eta_request_dict):
+        request_keys_to_type_dict = {
+            "store_id": int,
+            "delivery_zipcode": str
+        }
+        try:
+            eta_request_dict_cleaned = self.transform_dict(eta_request_dict, request_keys_to_type_dict)
+        except BadRequest as e:
+            raise e
+        return eta_request_dict_cleaned
+
+    def get_data(self, eta_request_dict):
         logging.debug(f"eta_request_dict:{eta_request_dict}")
-        redis_data = self.get_redis_data(eta_request_dict, hod, dow)
+        eta_request_dict = self.coerce_request_dict(eta_request_dict)
+        redis_data = self.get_redis_data(eta_request_dict)
         redis_data_processed = self.process_redis_data(eta_request_dict, redis_data)
         processed_request_dict = {}
         for keys, dictionaries in redis_data_processed.items():
@@ -525,6 +560,7 @@ class DataService:
             # This will overwrite keys each time
             processed_request_dict.update(driver_request)
             delivery_request_arr.append(pd.DataFrame([processed_request_dict]))
+        logging.info(f"Got redis data for request {eta_request_dict}")
         return delivery_request_arr
 
     def get_eta_fallback(self, eta_request_dict):
@@ -536,15 +572,16 @@ class DataService:
                 k: float(v) if k in ("eta_fallback_lower", "eta_fallback_upper") else v
                 for k, v in val.items()
             }
-            return (
-                fallback_dict["eta_fallback_lower"],
-                fallback_dict["eta_fallback_upper"],
-            )
+            model_prediction = {"lower": fallback_dict["eta_fallback_lower"], "upper": fallback_dict["eta_fallback_upper"], "response_code": 202,
+                                "error_message": "This store_id delivery_zipcode combo is not present in random forest model. Returning the fallback response"}
         except (TypeError, KeyError) as e:
-            logging.warning(
+            logging.error(
                 f"store_id:{eta_request_dict['store_id']} not in fallback model"
             )
-            return []
+            model_prediction = {"response_code": 500,
+                                "error_message": "This store_id  is not present in either the Random Forest Model or the Fallback model. This is expected on the first day for new stores, but shouldn't persist long after that."}
+        finally:
+            return model_prediction
 
 
 # For testing
